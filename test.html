@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100svw;
+            height: 100svh;
+        }
+        .button {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 6em;
+            height: 6em;
+            border-radius: 3em;
+            box-shadow: 0.0em 0.4em 1.0em #666;
+            background: rgba(70,98,252,1);
+            background: linear-gradient(0deg, rgba(70,98,252,1) 20%, rgba(251,113,63,1) 90%);
+
+            & div {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 4.2em;
+                height: 4.2em;
+                border-radius: 2.1em;
+                background: white;
+
+                & div {
+                    width: 3.7em;
+                    height: 3.7em;
+                    border-radius: 1.85em;
+                    background: white;
+                    box-shadow: 0.0em 0.2em 0.5em #666 inset;
+                    overflow: hidden;
+                }
+            }
+
+            & p {
+                margin: 0;
+                padding: 0;
+                position: absolute;
+                font-family: monospace;
+                font-size: 4em;
+                color: #666;
+                font-weight: bolder;
+                top: .4em;
+            }
+
+        }
+
+        .button1 {
+            width: 2rem;
+            height: 2rem;
+            color: blue;
+            background-image: url("close_24dp_FILL0_wght400_GRAD0_opsz24.svg");
+            background-position: center;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .button2 {
+            width: 3rem;
+            height: 3rem;
+            color: blue;
+        }
+    
+    </style>
+</head>
+<body>
+    <div class="button">
+        <div><div></div></div>
+        <p>S</p>
+    </div>
+
+    <div class="button1"></div>
+
+    <div class="button2">
+        <svg xmlns="http://www.w3.org/2000/svg" height="100%" viewBox="0 -960 960 960" width="100%" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+    </div>
+</body>
+</html>

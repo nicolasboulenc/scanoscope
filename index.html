@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Scan-o-Scope</title>
+
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&display=swap">
+	<link rel="stylesheet" href="main.css"/>
+
+	<!-- <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.0.2/dist/dbr.js"></script> -->
+	<!-- <script src="https://cdn.jsdelivr.net/npm/barcode-detection@0.4.0/dist/barcode-detector.umd.js"></script> -->
+</head>
+<body class="light">
+
+	<!-- TOOLBAR -->
+	<div id="toolbar">
+		<div id="back-button" class="toolbar-button vh">
+			<span class="material-symbols-outlined">arrow_back</span>
+		</div>
+		<div id="title" class="dancing-script-title">Scan-o-Scope</div>
+		<div id="menu-button" class="toolbar-button">
+			<span class="material-symbols-outlined">menu_open</span>
+		</div>
+	</div>
+
+	<!-- SETTINGS  -->
+	<div id="settings">
+		<div>
+			<h3>Camera</h3>
+			<select id="camera-select"></select>
+		</div>
+		<div>
+			<h3>Theme</h3>
+			<div class="theme">
+				<span id="light-button" class="material-symbols-outlined icon">light_mode</span>
+				<span id="dark-button" class="material-symbols-outlined icon">dark_mode</span>
+			</div>
+		</div>
+		<div class="clear">
+			<h3>Reset</h3>
+			<div id="clear-location-button">Clear Current Location</div>
+			<div id="clear-row-button">Clear Current Row</div>
+			<div id="clear-all-button">Clear All Locations</div>
+		</div>
+		<div>
+			<h3>Misc.</h3>
+			<div><div>Demo</div><input type="checkbox"></div>
+		</div>
+	</div>
+
+	<!-- DISPLAY -->
+	<div id="display">
+		<video muted autoplay="autoplay" playsinline="playsinline" webkit-playsinline></video>
+		<svg></svg>
+	</div>
+
+	<!-- CAPTURE BUTTON -->
+	<div id="capture-container">
+		<div id="capture-button">
+			<div><div></div></div><p>S</p>
+		</div>
+	</div>
+
+	<div id="bottom-panels">
+		<div class="location-panel">
+			<div><select id="loc-select"></select><label for="loc-select">Loc</label></div>
+			<div><select id="row-select"></select><label for="row-select">Row</label></div>
+			<div class="count"><div id="count">0</div><label for="row-select">Count</label></div>
+			<div id="share-button"><div>Share</div><span class="material-symbols-outlined">share</span></div>
+		</div>
+		<div class="divider"></div>
+		<div class="content-panel">
+			<div id="location-content"></div>
+		</div>
+		<div id="add-button"><span class="material-symbols-outlined icon">add</span></div>
+	</div>
+
+	<div id="credits">Created by Nicolas Boulenc (2024)</div>
+
+	<script src="main.js"></script>
+</body>
+</html>
