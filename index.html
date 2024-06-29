@@ -28,32 +28,36 @@
 	<!-- SETTINGS  -->
 	<div id="settings">
 		<div>
-			<h3>Camera</h3>
+			<h2>Camera</h2>
 			<select id="camera-select"></select>
 		</div>
 		<div>
-			<h3>Theme</h3>
+			<h2>Theme</h2>
 			<div class="theme">
 				<span id="light-button" class="material-symbols-outlined icon">light_mode</span>
 				<span id="dark-button" class="material-symbols-outlined icon">dark_mode</span>
 			</div>
 		</div>
 		<div class="clear">
-			<h3>Reset</h3>
-			<div id="clear-location-button">Clear Current Location</div>
+			<h2>Reset</h2>
+			<div id="clear-loc-button">Clear Current Location</div>
 			<div id="clear-row-button">Clear Current Row</div>
 			<div id="clear-all-button">Clear All Locations</div>
 		</div>
-		<div>
-			<h3>Misc.</h3>
-			<div><div>Demo</div><input type="checkbox"></div>
+		<div class="misc">
+			<h2>Misc.</h2>
+			<div id="beep-button"><div>Beep</div><input id="beep-checkbox" type="checkbox"></div>
+			<div id="vibr-button"><div>Vibrate</div><input id="vibr-checkbox" type="checkbox"></div>
+			<div id="demo-button"><div>Demo</div><input id="demo-checkbox" type="checkbox"></div>
 		</div>
 	</div>
 
 	<!-- DISPLAY -->
 	<div id="display">
 		<video muted autoplay="autoplay" playsinline="playsinline" webkit-playsinline></video>
-		<svg></svg>
+		<svg xmlns="http://www.w3.org/2000/svg">
+			<text id="is_demo" x="-100" y="1.4rem">Demo On</text>
+		</svg>
 	</div>
 
 	<!-- CAPTURE BUTTON -->
@@ -78,6 +82,8 @@
 	</div>
 
 	<div id="credits">Created by Nicolas Boulenc (2024)</div>
+
+	<audio src="beep.wav" id="beep"></audio>
 
 	<script src="main.js"></script>
 </body>

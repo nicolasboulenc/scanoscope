@@ -3,59 +3,82 @@
 
 let app = {
 	barcode_detector: null,
-	is_decoding: false,
-	interval: 1000,	// 1000/30fps=33ms, 1000/20fps=50ms
-	interval_id: 0,
 	video_elem: null,
+	audio_ctx: null,
+	is_scaning: false,
+	is_decoding: false,
+	timeout_ms: 50,	// 1000/30fps=33ms, 1000/20fps=50ms
+	timeout_id: 0,
 	overlays: [],
 	scan_code: 0,
 	scan_time: 0,
 	scan_count: 0,
-	loc: "",
-	row: ""
 }
-const SCAN_STALE = 1000
-const OVERLAYS_COUNT = 3
+
+// initialised as default
+let state = {
+	camera_idx: 0,
+	is_dark: false,
+	loc: "100",
+	row: "1",
+	do_beep: true,
+	do_vibrate: true,
+	is_demo: false,
+}
+
+const SCAN_TRIGGER = 300
+const OVERLAYS_COUNT = 1
 
 
 init()
 
 async function init() {
-	
-	document.querySelector("#capture-button").addEventListener("click", capture_onclick)
+
+	app.audio_ctx = new AudioContext();
+	let audio_elem = document.querySelector("#beep")
+	const track = app.audio_ctx.createMediaElementSource(audio_elem);
+	track.connect(app.audio_ctx.destination);
+
+	document.querySelector("#capture-button").addEventListener("pointerdown", capture_onpointerdown)
+	document.querySelector("#capture-button").addEventListener("pointerup", capture_onpointerup)
 	document.querySelector("#menu-button").addEventListener("click", menu_onclick)
-	document.querySelector("#light-button").addEventListener("click", light_onclick)
-	document.querySelector("#dark-button").addEventListener("click", dark_onclick)
-	document.querySelector("#clear-location-button").addEventListener("click", clear_loc_onclick)
-	document.querySelector("#clear-row-button").addEventListener("click", clear_row_onclick)
-	document.querySelector("#clear-all-button").addEventListener("click", clear_all_onclick)
-	document.querySelector("#camera-select").addEventListener("change", source_onchange)
 	document.querySelector("#display > video").addEventListener("loadeddata", device_onloadeddata, false)
 	document.querySelector("#loc-select").addEventListener("change", location_onchange)
 	document.querySelector("#row-select").addEventListener("change", location_onchange)
 	document.querySelector("#share-button").addEventListener("click", share_onclick)
 	document.querySelector("#add-button").addEventListener("click", add_onclick)
+
+	// settings
+	document.querySelector("#camera-select").addEventListener("change", source_onchange)
+	document.querySelector("#light-button").addEventListener("click", light_onclick)
+	document.querySelector("#dark-button").addEventListener("click", dark_onclick)
+	document.querySelector("#clear-loc-button").addEventListener("click", clear_loc_onclick)
+	document.querySelector("#clear-row-button").addEventListener("click", clear_row_onclick)
+	document.querySelector("#clear-all-button").addEventListener("click", clear_all_onclick)
+	document.querySelector("#beep-button").addEventListener("click", beep_onclick)
+	document.querySelector("#vibr-button").addEventListener("click", vibr_onclick)
+	document.querySelector("#demo-button").addEventListener("click", demo_onclick)
+
 	app.video_elem = document.querySelector("#display > video")
 
-	app.loc = localStorage.getItem("loc")
-	app.loc = ( app.loc === null ? "" : app.loc )
-
-	app.row = localStorage.getItem("row")
-	app.row = ( app.row === null ? "" : app.row )
-
+	state_load()
 	init_locations()
 
-
-	if(app.loc === "") {
+	if(state.loc === "") {
 		let loc_elem = document.querySelector("#loc-select")
-		app.loc = loc_elem[loc_elem.selectedIndex].value
+		state.loc = loc_elem[loc_elem.selectedIndex].value
 	}
 
-	if(app.row === "") {
+	if(state.row === "") {
 		let row_elem = document.querySelector("#row-select")
-		app.row = row_elem[row_elem.selectedIndex].value
+		state.row = row_elem[row_elem.selectedIndex].value
 	}
 
+	document.querySelector("#beep-checkbox").checked = state.do_beep
+	document.querySelector("#vibr-checkbox").checked = state.do_vibrate
+	document.querySelector("#demo-checkbox").checked = state.is_demo
+
+	
 	content_update()
 
 
@@ -74,14 +97,14 @@ async function init() {
 	}
 	else {
 		console.info('Barcode Detector is not supported by this browser, using the Dynamsoft Barcode Reader polyfill?')
-		app.interval = 1000
+		// app.timeout_ms = 1000
 
 		// BarcodeDetectorPolyfill.setLicense("DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==")
 		// let reader = await BarcodeDetectorPolyfill.init()
 		// window.BarcodeDetector = BarcodeDetectorPolyfill
 		// console.log(reader)
-  	}
-  
+	}
+
 	if(typeof window.BarcodeDetector !== "undefined") {
 		app.barcode_detector = new window.BarcodeDetector()
 	}
@@ -98,7 +121,7 @@ function init_locations() {
 		let option = document.createElement("option")
 		option.value = loc
 		option.text = loc
-		if(loc == app.loc) option.selected = true
+		if(loc == state.loc) option.selected = true
 		loc_elem.appendChild(option)
 	}
 
@@ -106,30 +129,30 @@ function init_locations() {
 	for(let i=1; i<100; i++) rows.push(i)
 	for(let i=65; i<65+26; i++) rows.push(String.fromCharCode(i))
 	rows.push("TR")
-	
+
 	let row_elem = document.querySelector("#row-select")
 
 	for(let row of rows) {
 		let option = document.createElement("option")
 		option.value = row
 		option.text = row
-		if(row == app.row) option.selected = true
+		if(row == state.row) option.selected = true
 		row_elem.appendChild(option)
 	}
 
 	let loc = loc_elem[loc_elem.selectedIndex].value
 	let row = row_elem[row_elem.selectedIndex].value
 
-	app.loc = loc
-	app.row = row
+	state.loc = loc
+	state.row = row
 }
 
 
 function init_overlays(count) {
 
-	let overlays = []
 	let overlays_svg = document.querySelector("#display > svg")
 
+	let overlays = []
 	for(let i=0; i<count; i++) {
 
 		let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon")
@@ -204,16 +227,14 @@ function device_onloadeddata(evt) {
 	svg_elem.style.width = `${video_elem.clientWidth}px`
 	svg_elem.style.height = `${video_elem.clientHeight}px`
 
-	clearInterval(app.interval_id)
-	app.interval_id = setInterval(device_decode, app.interval)
 	console.info("Video loaded.")
-	// console.log(evt)
 }
 
 
 async function device_decode() {
 
 	if(app.barcode_detector === null) return
+	if(app.is_scaning === false) return
 	if(app.is_decoding === true) return
 
 	app.is_decoding = true
@@ -227,15 +248,37 @@ async function device_decode() {
 	overlays_update(barcodes)
 
 	if(barcodes.length > 0) {
-		app.scan_code = barcodes[0].rawValue
-		app.scan_time = Date.now()
-	}
-	else if(Date.now() - app.scan_time > SCAN_STALE) {
-		app.scan_code = 0
+		if(app.scan_code !== barcodes[0].rawValue) {
+			app.scan_time = Date.now()
+			app.scan_code = barcodes[0].rawValue
+		}
+
+		if(Date.now() - app.scan_time > SCAN_TRIGGER) {
+			app.is_decoding = false
+			capture_complete()
+			return
+		}
 	}
 
 	app.is_decoding = false
+	app.timeout_id = setTimeout(device_decode, app.timeout_ms)
 }
+
+
+function device_decode_demo() {
+
+	if(app.is_scaning === false) return
+
+	if(Date.now() - app.scan_time > SCAN_TRIGGER) {
+		console.log(Date.now() - app.scan_time)
+		app.is_decoding = false
+		capture_complete()
+		return
+	}
+
+	app.timeout_id = setTimeout(device_decode_demo, app.timeout_ms)
+}
+
 
 
 async function device_play(device_id) {
@@ -258,7 +301,7 @@ async function device_play(device_id) {
 
 async function device_stop() {
 
-	clearInterval(app.interval_id);
+	// clearInterval(app.timeout_id);
 	if(app.video_elem.srcObject === null) {
 		console.info("No device to stop")
 		return
@@ -289,7 +332,7 @@ function overlays_update(barcodes) {
 		const points = `${p[0].x},${p[0].y} ${p[1].x},${p[1].y} ${p[2].x},${p[2].y} ${p[3].x},${p[3].y}`
 
 		overlay.polygon.setAttribute("points", points)
-		
+
 		let pts = [p[0], p[1], p[2], p[3]]
 		pts.sort((a, b) => (a.y - b.y) - (b.x - a.x))
 		const pt = pts[0]
@@ -297,7 +340,7 @@ function overlays_update(barcodes) {
 		overlay.text.innerHTML = barcode.rawValue
 		overlay.text.setAttribute("x", pt.x)
 		overlay.text.setAttribute("y", pt.y - 5)
-		
+
 		const bbox = overlay.text.getBoundingClientRect()
 		overlay.rect.setAttribute("x", pt.x)
 		overlay.rect.setAttribute("y", pt.y - bbox.height)
@@ -321,12 +364,12 @@ function overlays_update(barcodes) {
 
 function content_update() {
 
-	let key = `${app.loc}-${app.row}`
+	let key = `${state.loc}-${state.row}`
 	let items = localStorage.getItem(key)
 
 	document.querySelector("#location-content").innerHTML = ""
 	let scan_list = []
-	
+
 	if(items !== null) {
 		scan_list = items.split(",")
 	}
@@ -365,46 +408,75 @@ function content_append(scan_code) {
 }
 
 
-function capture_onclick(evt) {
+function capture_onpointerdown() {
 
-	console.info("Capture click.")
+	app.is_scaning = true
+	app.scan_code = 0
+	app.scan_time = Date.now()
+	if(state.is_demo === false) {
+		device_decode()
+	}
+	else {
+		console.info(Date.now())
+		app.scan_code = (Math.floor(Math.random() * 9999999)).toString().padStart(7, "0")
+		device_decode_demo()
+	}
+}
 
-	app.scan_code = Math.floor(Math.random() * 9999999).toString().padStart(7, '0')
+function capture_onpointerup() {
 
-	if(app.scan_code !== 0) {
+	app.is_scaning = false
+	clearTimeout(app.timeout_id)
+	overlays_update([])
+}
 
-		let key = `${app.loc}-${app.row}`
-		let current = localStorage.getItem(key)
-		if(current !== null) {
-			current = current.split(",")
-		}
-		else {
-			localStorage.setItem(key, "")
-			current = []
-		}
-		current.push(app.scan_code)
-		// content_update(current)
 
-		current = current.join(",")
-		localStorage.setItem(key, current);
+function capture_complete() {
+
+	console.info(Date.now())
+	app.is_scaning = false
+
+	if(state.do_beep === true) {
+		play_beep()
+	}
 	
-		content_append(app.scan_code)
+	if(state.do_vibrate === true) {
+		navigator.vibrate(200)
+	}
 
-		app.scan_count++
-		document.querySelector("#count").innerHTML = `${app.scan_count}`
+	overlays_update([])
 
-		// scroll
-		let container = document.querySelector("#location-content")
-		let elems = container.childNodes
-		
-		if(elems.length > 4) {
-			let panel = document.querySelector(".content-panel")
-			let elem = elems[elems.length - 4]
-			let ebbox = elem.getBoundingClientRect()
-			let pbbox = panel.getBoundingClientRect()
-			let offset = ebbox.top + panel.scrollTop - pbbox.top
-			panel.scrollTo({ top: offset, left: 0, behavior: "smooth" })
-		}
+	let key = `${state.loc}-${state.row}`
+	let current = localStorage.getItem(key)
+	if(current !== null) {
+		current = current.split(",")
+	}
+	else {
+		localStorage.setItem(key, "")
+		current = []
+	}
+	current.push(app.scan_code)
+	// content_update(current)
+
+	current = current.join(",")
+	localStorage.setItem(key, current);
+
+	content_append(app.scan_code)
+
+	app.scan_count++
+	document.querySelector("#count").innerHTML = `${app.scan_count}`
+
+	// scroll
+	let container = document.querySelector("#location-content")
+	let elems = container.childNodes
+
+	if(elems.length > 4) {
+		let panel = document.querySelector(".content-panel")
+		let elem = elems[elems.length - 4]
+		let ebbox = elem.getBoundingClientRect()
+		let pbbox = panel.getBoundingClientRect()
+		let offset = ebbox.top + panel.scrollTop - pbbox.top
+		panel.scrollTo({ top: offset, left: 0, behavior: "smooth" })
 	}
 }
 
@@ -412,6 +484,9 @@ function capture_onclick(evt) {
 function source_onchange(evt){
 
 	let camera_select = evt.currentTarget
+	state.camera_idx = camera_select.selectedIndex
+	state_save()
+
 	let device_id = camera_select.selectedOptions[0].value
 	device_play(device_id);
 }
@@ -419,23 +494,25 @@ function source_onchange(evt){
 
 function menu_onclick(evt) {
 
-    const settings_elem = document.getElementById("settings")
-    const button_elem = document.querySelector("#menu-button > span")
+	const settings_elem = document.getElementById("settings")
+	const button_elem = document.querySelector("#menu-button > span")
 
-    if(settings_elem.classList.contains("active") === true) {
-        settings_elem.classList.remove("active")
+	if(settings_elem.classList.contains("active") === true) {
+		settings_elem.classList.remove("active")
 		button_elem.innerHTML = "menu_open"
 		console.info(`Menu show.`)
-    }
-    else {
-        settings_elem.classList.add("active")
+	}
+	else {
+		settings_elem.classList.add("active")
 		button_elem.innerHTML = "close"
 		console.info(`Menu hide.`)
-    }
+	}
 }
 
 
 function light_onclick(evt) {
+	state.is_dark = false
+	state_save()
 	console.info("Enabling light mode.")
 	document.body.classList.remove("dark")
 	document.body.classList.add("light")
@@ -443,6 +520,8 @@ function light_onclick(evt) {
 
 
 function dark_onclick(evt) {
+	state.is_dark = true
+	state_save()
 	console.info("Enabling dark	mode.")
 	document.body.classList.remove("light")
 	document.body.classList.add("dark")
@@ -452,27 +531,26 @@ function dark_onclick(evt) {
 function location_onchange(evt) {
 
 	let loc_elem = document.querySelector("#loc-select")
-	app.loc = loc_elem[loc_elem.selectedIndex].value
+	state.loc = loc_elem[loc_elem.selectedIndex].value
 
 	let row_elem = document.querySelector("#row-select")
-	app.row = row_elem[row_elem.selectedIndex].value
-	
-	localStorage.setItem("loc", app.loc)
-	localStorage.setItem("row", app.row)
+	state.row = row_elem[row_elem.selectedIndex].value
+
+	state_save()
 
 	content_update()
-	console.info(`Location changed to ${app.loc}-${app.row}.`)
+	console.info(`Location changed to ${state.loc}-${state.row}.`)
 }
 
 
 function clear_loc_onclick(evt) {
-	console.info(`Clear current location ${app.loc}.`)
-	
+	console.info(`Clear current location ${state.loc}.`)
+
 	for (let i=0; i<localStorage.length; i++) {
 		let key = localStorage.key(i)
 		let loc = key.split("-")
 		loc = (loc.length == 2 ? loc[0] : "")
-		if(loc === app.loc) {
+		if(loc === state.loc) {
 			localStorage.removeItem(key)
 		}
 	}
@@ -482,8 +560,8 @@ function clear_loc_onclick(evt) {
 
 
 function clear_row_onclick(evt) {
-	console.info(`Clear current row ${app.row}.`)
-	let key = `${app.loc}-${app.row}`
+	console.info(`Clear current row ${state.row}.`)
+	let key = `${state.loc}-${state.row}`
 	localStorage.removeItem(key)
 
 	content_update()
@@ -580,7 +658,7 @@ function item_remove_onclick(evt) {
 
 	let scan_code = evt.currentTarget.dataset["scan_code"]
 
-	let key = `${app.loc}-${app.row}`
+	let key = `${state.loc}-${state.row}`
 	let data = localStorage.getItem(key)
 	if(data === null) return
 
@@ -590,9 +668,9 @@ function item_remove_onclick(evt) {
 
 	data.splice(index, 1)
 	data.join("'")
-	localStorage.setItem(`${app.loc}-${app.row}`, data)
+	localStorage.setItem(`${state.loc}-${state.row}`, data)
 
-	console.log(`Remove ${scan_code} from ${app.loc}-${app.row}`)
+	console.log(`Remove ${scan_code} from ${state.loc}-${state.row}`)
 	content_update()
 }
 
@@ -601,7 +679,7 @@ function add_onclick(evt) {
 
 	app.scan_code = "???????"
 
-	let key = `${app.loc}-${app.row}`
+	let key = `${state.loc}-${state.row}`
 	let current = localStorage.getItem(key)
 	if(current !== null) {
 		current = current.split(",")
@@ -620,4 +698,88 @@ function add_onclick(evt) {
 	document.querySelector("#count").innerHTML = `${app.scan_count}`
 
 	app.scan_code = 0
+}
+
+
+function demo_onclick(evt) {
+
+	let checkbox = document.querySelector("#demo-checkbox")
+	if(evt.target.id !== "demo-checkbox") {
+		checkbox.checked = !checkbox.checked
+	}
+
+	state.is_demo = checkbox.checked
+	state_save()
+
+	let demo_elem = document.querySelector("#is_demo")
+	if(state.is_demo == true) {
+		demo_elem.setAttribute("x", 10)
+	}
+	else {
+		demo_elem.setAttribute("x", -100)
+	}
+
+	console.info(`Demo mode ${state.is_demo}.`)
+}
+
+
+function play_beep() {
+
+	if (app.audio_ctx.state === "suspended") {
+		app.audio_ctx.resume();
+	}
+
+	let audio_elem = document.querySelector("#beep")
+	audio_elem = document.querySelector("#beep")
+	audio_elem.play()
+}
+
+
+function beep_onclick(evt) {
+	
+	state.do_beep = (evt.target.checked == true)
+	state_save()
+	if(state.do_beep === true) {
+		console.info(`Beep on`)
+	}
+	else {
+		console.info(`Beep off`)
+	}
+}
+
+function vibr_onclick(evt) {
+
+	state.do_vibrate = (evt.target.checked === true)
+	state_save()
+	if(state.do_vibrate === true) {
+		console.info(`Vibrate on`)
+	}
+	else {
+		console.info(`Vibrate off`)
+	}
+}
+
+
+function state_load() {
+	let s = null
+	let json = localStorage.getItem("state")
+	if(json !== null) {
+		s = JSON.parse(json)
+
+		for(const prop in s) {
+			if(typeof state[prop] !== "undefined") {
+				state[prop] = s[prop]
+			}
+		}	
+	}
+	else {
+		json = JSON.stringify(state)
+		localStorage.setItem("state", json)
+	}
+}
+
+
+function state_save() {
+	let json = JSON.stringify(state)
+	localStorage.setItem("state", json)
 }
