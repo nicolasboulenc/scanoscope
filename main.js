@@ -2,12 +2,13 @@
 "use strict";
 
 let app = {
-	barcode_detector: null,
+	barcode_mode: "native",	// "native", "zxing"
+	barcode_reader: null,
 	video_elem: null,
 	audio_ctx: null,
 	is_scaning: false,
 	is_decoding: false,
-	timeout_ms: 50,	// 1000/30fps=33ms, 1000/20fps=50ms
+	timeout_ms: 50,		// 1000/30fps=33ms, 1000/20fps=50ms
 	timeout_id: 0,
 	overlays: [],
 	scan_code: 0,
@@ -41,6 +42,7 @@ async function init() {
 
 	document.querySelector("#capture-button").addEventListener("pointerdown", capture_onpointerdown)
 	document.querySelector("#capture-button").addEventListener("pointerup", capture_onpointerup)
+	document.querySelector("#capture-button").addEventListener("touchstart", (evt) => { console.log("touch"); evt.preventDefault() })
 	document.querySelector("#menu-button").addEventListener("click", menu_onclick)
 	document.querySelector("#display > video").addEventListener("loadeddata", device_onloadeddata, false)
 	document.querySelector("#loc-select").addEventListener("change", location_onchange)
@@ -78,36 +80,31 @@ async function init() {
 	document.querySelector("#vibr-checkbox").checked = state.do_vibrate
 	document.querySelector("#demo-checkbox").checked = state.is_demo
 
-	
 	content_update()
-
 
 	app.overlays = init_overlays(OVERLAYS_COUNT)
 
-	let barcode_detector_supported = false
 	if('BarcodeDetector' in window) {
 		let formats = await window.BarcodeDetector.getSupportedFormats()
 		if (formats.length > 0) {
-			barcode_detector_supported = true
+			app.barcode_mode = "native"
+		}
+		else {
+			app.barcode_mode = "zxing"
 		}
 	}
-
-	if(barcode_detector_supported === true) {
-		console.info('Barcode Detector supported!')
-	}
 	else {
-		console.info('Barcode Detector is not supported by this browser, using the Dynamsoft Barcode Reader polyfill?')
-		// app.timeout_ms = 1000
-
-		// BarcodeDetectorPolyfill.setLicense("DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==")
-		// let reader = await BarcodeDetectorPolyfill.init()
-		// window.BarcodeDetector = BarcodeDetectorPolyfill
-		// console.log(reader)
+		app.barcode_mode = "zxing"
 	}
-
-	if(typeof window.BarcodeDetector !== "undefined") {
-		app.barcode_detector = new window.BarcodeDetector()
+	
+	if(app.barcode_mode === "native") {
+		app.barcode_reader = new window.BarcodeDetector()
 	}
+	else if(app.barcode_mode === "zxing") {
+		app.barcode_reader = new ZXing.BrowserMultiFormatReader()
+	}
+	console.info(`Barcode reader mode ${app.barcode_mode}`)
+
 	devices_enum_and_play()
 }
 
@@ -190,22 +187,36 @@ async function devices_enum_and_play() {
 	const device_list = []
 	for(const device of devices) {
 		if(device.kind == "videoinput") {
-			const caps = device.getCapabilities()
+			
+			let caps = ""
+			// chrome
+			if(typeof device.getCapabilities !== "undefined") {
+				caps = device.getCapabilities()
+			}
+			// firefox
+			if(typeof device.getSupportedConstraints !== "undefined") {
+				caps = device.getSupportedConstraints()
+			}
+
 			const label = device.label || `Camera ${count}`
-			device_list.push({"label": label, "caps": caps, "count": count})
-			// console.log({"label": label, "caps": caps, "count": count})
+			device_list.push({"label": label, "id": device.deviceId, "caps": caps, "count": count})
+			// console.log({"label": label, "id": device.deviceId, "caps": caps, "count": count})
 			count++
 		}
 	}
 
 	device_list.sort((a, b) => {
+
+		if(typeof a.caps.facingMode === "undefined") return 1
+
 		const order_a = a.count + (a.caps.facingMode[0] === "environment" ? -100 : 0)
 		const order_b = b.count + (b.caps.facingMode[0] === "environment" ? -100 : 0)
 		return order_a + order_b
 	})
 
 	for(const device of device_list) {
-		camera_select.add(new Option(device.label, device.caps.deviceId))
+		// camera_select.add(new Option(device.label, device.caps.deviceId))
+		camera_select.add(new Option(device.label, device.id))
 	}
 
 	if(count > 0) {
@@ -216,69 +227,6 @@ async function devices_enum_and_play() {
 		alert("No camera detected.")
 	}
 }
-
-
-function device_onloadeddata(evt) {
-
-	const svg_elem = document.querySelector("#display > svg")
-	svg_elem.setAttribute("viewBox",`0 0 ${app.video_elem.videoWidth} ${app.video_elem.videoHeight}`)
-
-	const video_elem = document.querySelector("#display > video")
-	svg_elem.style.width = `${video_elem.clientWidth}px`
-	svg_elem.style.height = `${video_elem.clientHeight}px`
-
-	console.info("Video loaded.")
-}
-
-
-async function device_decode() {
-
-	if(app.barcode_detector === null) return
-	if(app.is_scaning === false) return
-	if(app.is_decoding === true) return
-
-	app.is_decoding = true
-	let barcodes = []
-	try {
-		barcodes = await app.barcode_detector.detect(app.video_elem)
-	}
-	catch(e) {
-		console.error('detect', e, e.stack)
-	}
-	overlays_update(barcodes)
-
-	if(barcodes.length > 0) {
-		if(app.scan_code !== barcodes[0].rawValue) {
-			app.scan_time = Date.now()
-			app.scan_code = barcodes[0].rawValue
-		}
-
-		if(Date.now() - app.scan_time > SCAN_TRIGGER) {
-			app.is_decoding = false
-			capture_complete()
-			return
-		}
-	}
-
-	app.is_decoding = false
-	app.timeout_id = setTimeout(device_decode, app.timeout_ms)
-}
-
-
-function device_decode_demo() {
-
-	if(app.is_scaning === false) return
-
-	if(Date.now() - app.scan_time > SCAN_TRIGGER) {
-		console.log(Date.now() - app.scan_time)
-		app.is_decoding = false
-		capture_complete()
-		return
-	}
-
-	app.timeout_id = setTimeout(device_decode_demo, app.timeout_ms)
-}
-
 
 
 async function device_play(device_id) {
@@ -294,7 +242,7 @@ async function device_play(device_id) {
 		app.video_elem.srcObject = stream
 	}
 	catch(e) {
-		console.error('getUserMedia', e, e.stack)
+		console.error('Device permission not granted?', e, e.stack)
 	}
 }
 
@@ -319,7 +267,95 @@ async function device_stop() {
 }
 
 
+function device_onloadeddata(evt) {
+
+	const svg_elem = document.querySelector("#display > svg")
+	svg_elem.setAttribute("viewBox",`0 0 ${app.video_elem.videoWidth} ${app.video_elem.videoHeight}`)
+
+	const video_elem = document.querySelector("#display > video")
+	svg_elem.style.width = `${video_elem.clientWidth}px`
+	svg_elem.style.height = `${video_elem.clientHeight}px`
+
+	console.info("Video loaded.")
+}
+
+
+async function device_decode() {
+
+	if(app.barcode_reader === null) return
+	if(app.is_scaning === false) return
+	if(app.is_decoding === true) return
+
+	// console.info(`Decoding scaning=${app.is_scaning}`)
+	
+	app.is_decoding = true
+	let barcodes = []
+	try {
+		if(app.barcode_mode === "native") {
+			barcodes = await app.barcode_reader.detect(app.video_elem)
+		}
+		else if(app.barcode_mode === "zxing") {
+			const result = await app.barcode_reader.decodeOnce(app.video_elem)
+			let p0 = result.resultPoints[0]
+			let p1 = result.resultPoints[1]
+			let w = p1.x - p0.x
+			let h = Math.floor(w / 8)
+			let p2 = { x: p1.x, y: p1.y + h }
+			let p3 = { x: p0.x, y: p0.y + h }
+			let corner_points = [p0, p1, p2, p3]
+			barcodes.push( { "rawValue": result.text, "cornerPoints": corner_points} )
+		}
+	}
+	catch(e) {
+		console.error('detect', e, e.stack)
+	}
+
+	// it feels this is is unnecessary and yet is_scanning can change 
+	// between the beginning and end of the function, despiste the
+	// await before the async detect and decodeOnce...?
+	// Is this a case for de-coupling the overlays_update using 
+	// requestAnimationFrame when the button is down?
+	if(app.is_scaning === true) {
+		overlays_update(barcodes)
+	}
+
+	if(barcodes.length > 0) {
+		// console.log(barcodes)
+		if(app.scan_code !== barcodes[0].rawValue) {
+			app.scan_time = Date.now()
+			app.scan_code = barcodes[0].rawValue
+		}
+
+		if(Date.now() - app.scan_time > SCAN_TRIGGER) {
+			app.is_decoding = false
+			capture_complete()
+			return
+		}
+	}
+
+	app.is_decoding = false
+	app.timeout_id = setTimeout(device_decode, app.timeout_ms)
+}
+
+
+function device_decode_demo() {
+
+	if(app.is_scaning === false) return
+
+	if(Date.now() - app.scan_time > SCAN_TRIGGER) {
+		app.is_decoding = false
+		capture_complete()
+		return
+	}
+
+	app.timeout_id = setTimeout(device_decode_demo, app.timeout_ms)
+}
+
+
 function overlays_update(barcodes) {
+
+	// console.info(`Updating`)
+	// console.trace()
 
 	let overlay_index = 0
 	for(const barcode of barcodes) {
@@ -364,15 +400,9 @@ function overlays_update(barcodes) {
 
 function content_update() {
 
-	let key = `${state.loc}-${state.row}`
-	let items = localStorage.getItem(key)
-
 	document.querySelector("#location-content").innerHTML = ""
-	let scan_list = []
-
-	if(items !== null) {
-		scan_list = items.split(",")
-	}
+	
+	let scan_list = content_load(state.loc, state.row)
 
 	for(let scan_code of scan_list) {
 		content_append(scan_code)
@@ -408,23 +438,25 @@ function content_append(scan_code) {
 }
 
 
-function capture_onpointerdown() {
+async function capture_onpointerdown(evt) {
 
+	evt.preventDefault()
 	app.is_scaning = true
 	app.scan_code = 0
 	app.scan_time = Date.now()
+
 	if(state.is_demo === false) {
-		device_decode()
+		await device_decode()
 	}
 	else {
-		console.info(Date.now())
 		app.scan_code = (Math.floor(Math.random() * 9999999)).toString().padStart(7, "0")
 		device_decode_demo()
 	}
 }
 
-function capture_onpointerup() {
+function capture_onpointerup(evt) {
 
+	
 	app.is_scaning = false
 	clearTimeout(app.timeout_id)
 	overlays_update([])
@@ -433,7 +465,6 @@ function capture_onpointerup() {
 
 function capture_complete() {
 
-	console.info(Date.now())
 	app.is_scaning = false
 
 	if(state.do_beep === true) {
@@ -445,25 +476,13 @@ function capture_complete() {
 	}
 
 	overlays_update([])
-
-	let key = `${state.loc}-${state.row}`
-	let current = localStorage.getItem(key)
-	if(current !== null) {
-		current = current.split(",")
-	}
-	else {
-		localStorage.setItem(key, "")
-		current = []
-	}
-	current.push(app.scan_code)
-	// content_update(current)
-
-	current = current.join(",")
-	localStorage.setItem(key, current);
-
 	content_append(app.scan_code)
 
-	app.scan_count++
+	let current = content_load(state.loc, state.row)
+	current.push(app.scan_code)
+	content_save(state.loc, state.row, current)
+
+	app.scan_count = current.length
 	document.querySelector("#count").innerHTML = `${app.scan_count}`
 
 	// scroll
@@ -613,19 +632,20 @@ function generate_file() {
 	const FIELD_SEPARATOR = ","
 	const LINE_SEPARATOR = "\n"
 
-	let csv = ""
+	let csv = `loc${FIELD_SEPARATOR}row${FIELD_SEPARATOR}item${LINE_SEPARATOR}`
 
 	for (let i=0; i<localStorage.length; i++) {
 
 		let key = localStorage.key(i)
-		let parts = key.split("-")
-		let loc = (parts.length == 2 ? parts[0] : "")
+		if(key === "state") continue
 
-		if(loc !== "") {
+		let parts = key.split("-")
+		if(parts.length === 2) {
+
+			let loc = parts[0]
 			let row = parts[1]
-			let data = localStorage.getItem(key)
-			data = data.split(",")
-			for(let item of data) {
+			let list = content_load(loc, row)
+			for(let item of list) {
 				csv += `"${loc}"${FIELD_SEPARATOR}"${row}"${FIELD_SEPARATOR}"${item}"${LINE_SEPARATOR}`
 			}
 		}
@@ -658,17 +678,12 @@ function item_remove_onclick(evt) {
 
 	let scan_code = evt.currentTarget.dataset["scan_code"]
 
-	let key = `${state.loc}-${state.row}`
-	let data = localStorage.getItem(key)
-	if(data === null) return
-
-	data = data.split(",")
-	let index = data.indexOf(scan_code)
+	let list = content_load(state.loc, state.row)
+	let index = list.indexOf(scan_code)
 	if(index === -1) return
 
-	data.splice(index, 1)
-	data.join("'")
-	localStorage.setItem(`${state.loc}-${state.row}`, data)
+	list.splice(index, 1)
+	content_save(state.loc, state.row, list)
 
 	console.log(`Remove ${scan_code} from ${state.loc}-${state.row}`)
 	content_update()
@@ -679,22 +694,12 @@ function add_onclick(evt) {
 
 	app.scan_code = "???????"
 
-	let key = `${state.loc}-${state.row}`
-	let current = localStorage.getItem(key)
-	if(current !== null) {
-		current = current.split(",")
-	}
-	else {
-		localStorage.setItem(key, "")
-		current = []
-	}
-	current.push(app.scan_code)
-	current = current.join(",")
-	localStorage.setItem(key, current);
-
+	let list = content_load(state.loc, state.row)
+	list.push(app.scan_code)
+	content_save(state.loc, state.row, list)
 	content_append(app.scan_code)
 
-	app.scan_count++
+	app.scan_count = list.length
 	document.querySelector("#count").innerHTML = `${app.scan_count}`
 
 	app.scan_code = 0
@@ -783,3 +788,30 @@ function state_save() {
 	let json = JSON.stringify(state)
 	localStorage.setItem("state", json)
 }
+
+
+function content_load(loc, row) {
+
+	let content = []
+
+	let key = `${loc}-${row}`
+	let items = localStorage.getItem(key)
+
+	if(items !== null) {
+		content = items.split(",")
+		if(content.length === 1 && content[0] === "") {
+			content = []
+		}
+	}
+
+	return content
+}
+
+
+function content_save(loc, row, list) {
+
+	let key = `${loc}-${row}`
+	let data = list.join(",")
+	localStorage.setItem(key, data);
+}
+

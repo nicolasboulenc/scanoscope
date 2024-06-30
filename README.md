@@ -11,4 +11,3 @@ To do:
 + Add the + button (2024-06-28)
 + load data on init (2024-06-28)
 
-https://github.com/mebjas/html5-qrcode

@@ -1,3 +1,16 @@
+@media screen and (min-width: 320px) {
+	html { font-size: 12px;	}
+}
+
+@media screen and (min-width: 376px) {
+	html { font-size: 16px;	}
+}
+
+@media screen and (min-width: 425px) {
+	html { font-size: 20px;	}
+}
+
+
 :root {
 	--color-primary: #0d6efd;
 	--color-accent: #d52243;
@@ -10,6 +23,7 @@ html {
 	overflow: hidden;
 	margin: 0;
 	padding: 0;
+	user-select: none;
 }
 
 body {
@@ -111,6 +125,7 @@ select {
 	justify-content: space-around;
 	align-items: center;
 	margin-top: -3rem;
+	user-select: none;
 
 	& #capture-button {
 		position: relative;
@@ -145,6 +160,7 @@ select {
 		}
 
 		& p {
+			user-select: none;
 			margin: 0;
 			padding: 0;
 			position: absolute;
@@ -308,13 +324,13 @@ select {
 }
 
 #credits {
-	position: absolute;
-	bottom: 0.5rem;
+	/* position: absolute;
+	bottom: 0.5rem; */
 	font-size: 0.8rem;
-	width: 100vw;
+	/* width: 100vw; */
 	font-style: italic;
 	text-align: center;
-	z-index: 30;
+	/* z-index: 30; */
 }
 
 #settings {
@@ -325,75 +341,87 @@ select {
 	left: 100vw;
 	width: 100vw;
 	height: calc(100svh - var(--toolbar-height));
-	padding-top: calc(1rem + var(--toolbar-height));
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+	overflow-y: scroll;
+	padding-top: var(--toolbar-height);
 	transition-property: left;
 	transition-duration: 0.4s;
 	transition-timing-function: ease-in-out;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
 
 	&.active {
-		left: 0svw;
+		left: 0vw;
 	}
 
-	&>div {
-		width: 60vw;
-	}
-
-	& h2 {
-		margin-top: 2.5rem;
-	}
-
-	& #camera-select {
-		width: 100%;
-	}
-
-	& .theme {
+	& .settings-container {
 		display: flex;
-		justify-content: space-around;
+		flex-direction: column;
+		justify-content: flex-start;
+		width: 70vw;
+		padding-bottom: 1rem;
 
-		& #light-button {
-			background-color: white;
-			border-radius: 0.3rem;
-			border: 1px solid #444;
-			/* box-shadow: 0.0em 0.1em 0.3em #aaa; */
+		& h2 {
+			margin-top: 2.5rem;
 		}
 
-		& #dark-button {
-			background-color: white;
-			border-radius: 0.3rem;
-			border: 1px solid #444;
-		}
-	}
-
-	& .clear {
-		& div {
-			color: red;
-			font-weight: bold;
-			margin-bottom: 1rem;
-			font-size: 1rem;
+		& #camera-select {
+			width: 100%;
 		}
 
-		& div:hover {
-			cursor: pointer;
-			text-decoration: underline;
-			text-decoration-thickness: 2px;
+		& .theme {
+			display: flex;
+			justify-content: space-around;
+
+			& #light-button {
+				background-color: white;
+				border-radius: 0.3rem;
+				border: 1px solid #444;
+				/* box-shadow: 0.0em 0.1em 0.3em #aaa; */
+			}
+
+			& #dark-button {
+				background-color: white;
+				border-radius: 0.3rem;
+				border: 1px solid #444;
+			}
 		}
-	}
 
-	& .misc > div > div {
-		display: inline-block;
-		width: 15svw;
-	}
+		& .clear {
+			& div {
+				color: red;
+				font-weight: bold;
+				margin-bottom: 1rem;
+				font-size: 1rem;
+			}
 
-	& .misc {
-		& > div {
-			margin-bottom: 1rem;
+			& div:hover {
+				cursor: pointer;
+				text-decoration: underline;
+				text-decoration-thickness: 2px;
+			}
 		}
 
-		& input {
-			margin-top: 2px;
+		& .misc {
+
+			& > div {
+				margin-bottom: 1rem;
+			}
+
+			& > div > div {
+				display: inline-block;
+				width: 15svw;
+			}
+
+			& input {
+				margin-top: 2px;
+			}
+		}
+
+		& .credits {
+			margin: 2.5rem 0 0 0;
+			text-align: center;
 		}
 	}
 }
